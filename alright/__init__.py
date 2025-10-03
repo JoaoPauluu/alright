@@ -28,7 +28,7 @@ LOGGER = logging.getLogger()
 
 
 class WhatsApp(object):
-    def __init__(self, browser=None, time_out=60):
+    def __init__(self, browser=None, time_out=600):
         # CJM - 20220419: Added time_out=600 to allow the call with less than 600 sec timeout
         # web.open(f"https://web.whatsapp.com/send?phone={phone_no}&text={quote(message)}")
 
@@ -36,9 +36,12 @@ class WhatsApp(object):
         self.suffix_link = "https://web.whatsapp.com/send?phone={mobile}&text&type=phone_number&app_absent=1"
 
         if not browser:
+            from selenium.webdriver.chrome.service import Service
+            service = Service(ChromeDriverManager().install())
+            chrome_options = self.chrome_options
             browser = webdriver.Chrome(
-                ChromeDriverManager().install(),
-                options=self.chrome_options,
+                service=service,
+                options=chrome_options
             )
 
             handles = browser.window_handles
@@ -462,12 +465,16 @@ class WhatsApp(object):
             message ([type]): [description]
         """
         try:
-            inp_xpath = '//*[@id="main"]/footer/div/div/span[2]/div/div[2]/div/div/div'
+            inp_xpath = '//*[@id="main"]/footer/div[1]/div/span/div/div[2]/div[1]/div/div[1]/p'
             input_box = self.wait.until(
                 EC.presence_of_element_located((By.XPATH, inp_xpath))
             )
             for line in message.split("\n"):
-                input_box.send_keys(line)
+                # mimick human like typing behaviour
+                for word in line.split():
+                    input_box.send_keys(word)
+                    input_box.send_keys(Keys.SPACE)
+                    time.sleep(0.8)
                 ActionChains(self.browser).key_down(Keys.SHIFT).key_down(
                     Keys.ENTER
                 ).key_up(Keys.ENTER).key_up(Keys.SHIFT).perform()
@@ -475,9 +482,11 @@ class WhatsApp(object):
                 time.sleep(timeout)
             input_box.send_keys(Keys.ENTER)
             LOGGER.info(f"Message sent successfuly to {self.mobile}")
+            return True
         except (NoSuchElementException, Exception) as bug:
             LOGGER.exception(f"Failed to send a message to {self.mobile} - {bug}")
             LOGGER.info("send_message() finished running!")
+        return False
 
     def send_direct_message(self, mobile: str, message: str, saved: bool = True):
         if saved:
@@ -730,10 +739,8 @@ class WhatsApp(object):
 
                 list_of_messages = self.wait.until(
                     EC.presence_of_all_elements_located(
-                        (
-                            By.XPATH,
-                            '//div[@id="main"]/div[3]/div[1]/div[2]/div[3]/child::div[contains(@class,"message-in")]',
-                        )
+                        By.XPATH,
+                        '//div[@id="main"]/div[3]/div[1]/div[2]/div[3]/child::div[contains(@class,"message-in")]',
                     )
                 )
 
