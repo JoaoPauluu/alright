@@ -24,9 +24,6 @@ from selenium.common.exceptions import (
     TimeoutException,
 )
 
-LOGGER = logging.getLogger()
-
-
 class WhatsApp(object):
 
     logger: logging.Logger
@@ -37,22 +34,24 @@ class WhatsApp(object):
         self.wait = WebDriverWait(driver=self.driver, timeout=timeout) 
         self.current_mobile = ""
 
-        self.cli()
+        self.build_logger()
         self.login()
 
 
-    def cli(self):
+    def build_logger(self):
         """
-        LOGGER settings  [nCKbr]
+        self.logger settings  [nCKbr]
         """
+
+        self.logger = logging.getLogger()
         handler = logging.StreamHandler()
         handler.setFormatter(
             logging.Formatter(
                 "%(asctime)s - %(name)s -- [%(levelname)s] >> %(message)s"
             )
         )
-        LOGGER.addHandler(handler)
-        LOGGER.setLevel(logging.INFO)
+        self.logger.addHandler(handler)
+        self.logger.setLevel(logging.INFO)
 
     def login(self):
         BASE_URL = "https://web.whatsapp.com/"
@@ -102,7 +101,7 @@ class WhatsApp(object):
             alert = self.driver.switch_to_alert.accept()
             return True
         except Exception as e:
-            LOGGER.exception(f"An exception occurred: {e}")
+            self.logger.exception(f"An exception occurred: {e}")
             return False
 
     def find_user(self, mobile:str) -> bool:
@@ -126,10 +125,10 @@ class WhatsApp(object):
             )
             return True
         except TimeoutException:
-            LOGGER.exception(f"Timeout: {mobile} is probably not on Whatsapp.")
+            self.logger.warning(f"Timeout: {mobile} is probably not on Whatsapp.")
             return False
         except UnexpectedAlertPresentException as bug:
-            LOGGER.exception(f"An exception occurred: {bug}")
+            self.logger.exception(f"An exception occurred: {bug}")
             time.sleep(1)
             return self.find_user(mobile)
 
@@ -160,13 +159,13 @@ class WhatsApp(object):
             if len(opened_chat):
                 title = opened_chat[0].get_attribute("title")
                 if title.upper() == query.upper():
-                    LOGGER.info(f'Successfully fetched chat "{query}"')
+                    self.logger.info(f'Successfully fetched chat "{query}"')
                 return True
             else:
-                LOGGER.info(f'It was not possible to fetch chat "{query}"')
+                self.logger.info(f'It was not possible to fetch chat "{query}"')
                 return False
         except NoSuchElementException:
-            LOGGER.exception(f'It was not possible to fetch chat "{query}"')
+            self.logger.exception(f'It was not possible to fetch chat "{query}"')
             return False
 
     def username_exists(self, username):
@@ -196,7 +195,7 @@ class WhatsApp(object):
             else:
                 return False
         except Exception as bug:
-            LOGGER.exception(f"Exception raised while finding user {username}\n{bug}")
+            self.logger.exception(f"Exception raised while finding user {username}\n{bug}")
 
     def get_first_chat(self, ignore_pinned=True):
         """get_first_chat()  [nCKbr]
@@ -229,11 +228,11 @@ class WhatsApp(object):
                     chat = self.driver.switch_to.active_element
 
             name = chat.text.split("\n")[0]
-            LOGGER.info(f'Successfully selected chat "{name}"')
+            self.logger.info(f'Successfully selected chat "{name}"')
             chat.send_keys(Keys.ENTER)
 
         except Exception as bug:
-            LOGGER.exception(f"Exception raised while getting first chat: {bug}")
+            self.logger.exception(f"Exception raised while getting first chat: {bug}")
 
     def search_chat_by_name(self, query: str):
         """search_chat_name()  [nCKbr]
@@ -269,15 +268,15 @@ class WhatsApp(object):
                 if prev_name == name:
                     break
             if flag:
-                LOGGER.info(f'Successfully selected chat "{name}"')
+                self.logger.info(f'Successfully selected chat "{name}"')
                 chat.send_keys(Keys.ENTER)
             else:
-                LOGGER.info(f'Could not locate chat "{query}"')
+                self.logger.info(f'Could not locate chat "{query}"')
                 search_box.click()
                 search_box.send_keys(Keys.ESCAPE)
 
         except Exception as bug:
-            LOGGER.exception(f"Exception raised while getting first chat: {bug}")
+            self.logger.exception(f"Exception raised while getting first chat: {bug}")
 
     def get_list_of_messages(self):
         """get_list_of_messages()
@@ -355,7 +354,7 @@ class WhatsApp(object):
                     }
                 )
             else:
-                LOGGER.info(f"Unknown message format: {_message}")
+                self.logger.info(f"Unknown message format: {_message}")
         return clean_messages
 
     def check_if_given_chat_has_unread_messages(self, query):
@@ -371,16 +370,16 @@ class WhatsApp(object):
             for chat in list_of_messages:
                 if query.upper() == chat["sender"].upper():
                     if chat["unread"]:
-                        LOGGER.info(
+                        self.logger.info(
                             f'Yup, {chat["no_of_unread"]} new message(s) on chat <{chat["sender"]}>.'
                         )
                         return True
-                    LOGGER.info(f'There are no new messages on chat "{query}".')
+                    self.logger.info(f'There are no new messages on chat "{query}".')
                     return False
-            LOGGER.info(f'Could not locate chat "{query}"')
+            self.logger.info(f'Could not locate chat "{query}"')
 
         except Exception as bug:
-            LOGGER.exception(f"Exception raised while getting first chat: {bug}")
+            self.logger.exception(f"Exception raised while getting first chat: {bug}")
 
     def send_message1(self, mobile: str, message: str) -> str:
         # CJM - 20220419:
@@ -436,11 +435,11 @@ class WhatsApp(object):
                         msg = f"4 "  # Not a WhatsApp Number
 
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"An exception occurred: {bug}")
+            self.logger.exception(f"An exception occurred: {bug}")
             msg = f"3 "
 
         finally:
-            LOGGER.info(f"{msg}")
+            self.logger.info(f"{msg}")
             return msg
 
     def send_message_to_current_chat(self, message: str, timeout:float=0.0):
@@ -468,11 +467,11 @@ class WhatsApp(object):
             if timeout:
                 time.sleep(timeout)
             input_box.send_keys(Keys.ENTER)
-            LOGGER.info(f"Message sent successfuly to {self.current_mobile}")
+            self.logger.info(f"Message sent successfuly to {self.current_mobile}")
             return True
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
-            #LOGGER.info("send_message() finished running!")
+            self.logger.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
+            #self.logger.info("send_message() finished running!")
         return False
 
     def find_attachment(self):
@@ -552,11 +551,11 @@ class WhatsApp(object):
             if message:
                 self.add_caption(message, media_type="image")
             self.send_attachment()
-            LOGGER.info(f"Picture has been successfully sent to {self.current_mobile}")
+            self.logger.info(f"Picture has been successfully sent to {self.current_mobile}")
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
+            self.logger.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
         finally:
-            LOGGER.info("send_picture() finished running!")
+            self.logger.info("send_picture() finished running!")
 
     def convert_bytes(self, size) -> str:
         # CJM - 2022/06/10:
@@ -605,13 +604,13 @@ class WhatsApp(object):
                 if message:
                     self.add_caption(message, media_type="video")
                 self.send_attachment()
-                LOGGER.info(f"Video has been successfully sent to {self.current_mobile}")
+                self.logger.info(f"Video has been successfully sent to {self.current_mobile}")
             else:
-                LOGGER.info(f"Video larger than 14MB")
+                self.logger.info(f"Video larger than 14MB")
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
+            self.logger.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
         finally:
-            LOGGER.info("send_video() finished running!")
+            self.logger.info("send_video() finished running!")
 
     def send_file(self, filename: Path, message: Optional[str] = None):
         """send_file()
@@ -637,9 +636,9 @@ class WhatsApp(object):
                 self.add_caption(message, media_type="file")
             self.send_attachment()
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a file to {self.current_mobile} - {bug}")
+            self.logger.exception(f"Failed to send a file to {self.current_mobile} - {bug}")
         finally:
-            LOGGER.info("send_file() finished running!")
+            self.logger.info("send_file() finished running!")
 
     def close_when_message_successfully_sent(self):
         """close_when_message_successfully_sent() [nCKbr]
@@ -651,7 +650,7 @@ class WhatsApp(object):
         Friendly contribution by @euriconicacio.
         """
 
-        LOGGER.info("Waiting for message status update to close browser...")
+        self.logger.info("Waiting for message status update to close browser...")
         try:
             # Waiting for the pending clock icon shows and disappear
             self.wait.until(
@@ -665,10 +664,10 @@ class WhatsApp(object):
                 )
             )
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
+            self.logger.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
         finally:
             self.driver.close()
-            LOGGER.info("Browser closed.")
+            self.logger.info("Browser closed.")
 
     def wait_until_message_successfully_sent(self):
         """wait_until_message_successfully_sent()
@@ -678,7 +677,7 @@ class WhatsApp(object):
         Friendly contribution by @jeslynlamxy.
         """
 
-        LOGGER.info("Waiting for message status update to before continuing...")
+        self.logger.info("Waiting for message status update to before continuing...")
         try:
             # Waiting for the pending clock icon shows and disappear
             self.wait.until(
@@ -692,7 +691,7 @@ class WhatsApp(object):
                 )
             )
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
+            self.logger.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
 
     def get_last_message_received(self, query: str):
         """get_last_message_received() [nCKbr]
@@ -725,7 +724,7 @@ class WhatsApp(object):
                 )
 
                 if len(list_of_messages) == 0:
-                    LOGGER.exception(
+                    self.logger.exception(
                         "It was not possible to retrieve the last message - probably it does not exist."
                     )
                 else:
@@ -773,13 +772,13 @@ class WhatsApp(object):
                         header_group.get_attribute("data-testid") == "default-group"
                         and msg_sender.strip() in header_text.text
                     ):
-                        LOGGER.info(f"Message sender: {msg_sender}.")
+                        self.logger.info(f"Message sender: {msg_sender}.")
                     elif (
                         msg_sender.strip() != msg[0].strip()
                     ):  # it is not a messages combo
-                        LOGGER.info(f"Message sender: {msg_sender}.")
+                        self.logger.info(f"Message sender: {msg_sender}.")
                     else:
-                        LOGGER.info(
+                        self.logger.info(
                             f"Message sender: retrievable from previous messages."
                         )
 
@@ -787,11 +786,11 @@ class WhatsApp(object):
                     # Example: Message text: ['John', 'Mary', 'Hi, John!', 'Hi, Mary! How are you?', '14:01']
                     # TODO: Implement 'filter_answer' boolean paramenter to sanitize this text based on previous messages search.
 
-                    LOGGER.info(f"Message text: {msg}.")
-                    LOGGER.info(f"Message time: {when}.")
+                    self.logger.info(f"Message text: {msg}.")
+                    self.logger.info(f"Message time: {when}.")
 
         except Exception as bug:
-            LOGGER.exception(f"Exception raised while getting first chat: {bug}")
+            self.logger.exception(f"Exception raised while getting first chat: {bug}")
 
     def fetch_all_unread_chats(self, limit=True, top=50):
         """fetch_all_unread_chats()  [nCKbr]
@@ -851,16 +850,16 @@ class WhatsApp(object):
                 if limit and counter >= top:
                     break
 
-                LOGGER.info(f"The counter value at this chunk is: {counter}.")
+                self.logger.info(f"The counter value at this chunk is: {counter}.")
 
             if limit:
-                LOGGER.info(
+                self.logger.info(
                     f"The list of unread chats, considering the first {counter} messages, is: {names}."
                 )
             else:
-                LOGGER.info(f"The list of all unread chats is: {names}.")
+                self.logger.info(f"The list of all unread chats is: {names}.")
             return names_data
 
         except Exception as bug:
-            LOGGER.exception(f"Exception raised while getting first chat: {bug}")
+            self.logger.exception(f"Exception raised while getting first chat: {bug}")
             return []
