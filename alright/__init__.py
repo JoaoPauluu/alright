@@ -21,6 +21,7 @@ from selenium.webdriver.common.by import By
 from selenium.common.exceptions import (
     UnexpectedAlertPresentException,
     NoSuchElementException,
+    TimeoutException,
 )
 
 LOGGER = logging.getLogger()
@@ -124,7 +125,7 @@ class WhatsApp(object):
                 EC.presence_of_element_located((By.XPATH, inp_xpath))
             )
             return True
-        except TimeoutError:
+        except TimeoutException:
             LOGGER.exception(f"Timeout: {mobile} is probably not on Whatsapp.")
             return False
         except UnexpectedAlertPresentException as bug:
