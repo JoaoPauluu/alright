@@ -1,5 +1,5 @@
 [project]
-name = "actually_alright"
+name = "alright"
 version = "0.1.0"
 description = "A fork of the module alright, inteneded for Whatsapp automation"
 readme = "README.md"
