@@ -10,11 +10,11 @@ import time
 import logging
 from typing import Optional
 from pathlib import Path
+
 from selenium import webdriver
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
@@ -22,51 +22,23 @@ from selenium.common.exceptions import (
     UnexpectedAlertPresentException,
     NoSuchElementException,
 )
-from webdriver_manager.chrome import ChromeDriverManager
 
 LOGGER = logging.getLogger()
 
 
 class WhatsApp(object):
-    def __init__(self, browser=None, time_out=600):
-        # CJM - 20220419: Added time_out=600 to allow the call with less than 600 sec timeout
-        # web.open(f"https://web.whatsapp.com/send?phone={phone_no}&text={quote(message)}")
 
-        self.BASE_URL = "https://web.whatsapp.com/"
-        self.suffix_link = "https://web.whatsapp.com/send?phone={mobile}&text&type=phone_number&app_absent=1"
+    logger: logging.Logger
 
-        if not browser:
-            from selenium.webdriver.chrome.service import Service
-            service = Service(ChromeDriverManager().install())
-            chrome_options = self.chrome_options
-            browser = webdriver.Chrome(
-                service=service,
-                options=chrome_options
-            )
+    def __init__(self, driver: webdriver.Chrome | webdriver.Firefox, timeout:float=60):
 
-            handles = browser.window_handles
-            for _, handle in enumerate(handles):
-                if handle != browser.current_window_handle:
-                    browser.switch_to.window(handle)
-                    browser.close()
+        self.driver = driver
+        self.wait = WebDriverWait(driver=self.driver, timeout=timeout) 
+        self.current_mobile = ""
 
-        self.browser = browser
-        # CJM - 20220419: Added time_out=600 to allow the call with less than 600 sec timeout
-        self.wait = WebDriverWait(self.browser, time_out)
         self.cli()
         self.login()
-        self.mobile = ""
 
-    @property
-    def chrome_options(self):
-        chrome_options = Options()
-        if sys.platform == "win32":
-            chrome_options.add_argument("--profile-directory=Default")
-            chrome_options.add_argument("--user-data-dir=C:/Temp/ChromeProfile")
-        else:
-            chrome_options.add_argument("start-maximized")
-            chrome_options.add_argument("--user-data-dir=./User_Data")
-        return chrome_options
 
     def cli(self):
         """
@@ -82,8 +54,8 @@ class WhatsApp(object):
         LOGGER.setLevel(logging.INFO)
 
     def login(self):
-        self.browser.get(self.BASE_URL)
-        self.browser.maximize_window()
+        BASE_URL = "https://web.whatsapp.com/"
+        self.driver.get(BASE_URL)
 
     def logout(self):
         prefix = "//div[@id='side']/header/div[2]/div/span/div[3]"
@@ -116,7 +88,8 @@ class WhatsApp(object):
         Returns:
             str: [description]
         """
-        return self.suffix_link.format(mobile=mobile)
+        suffix_link = "https://web.whatsapp.com/send?phone={mobile}&text&type=phone_number&app_absent=1"
+        return suffix_link.format(mobile=mobile)
 
     def catch_alert(self, seconds=3):
         """catch_alert()
@@ -124,37 +97,49 @@ class WhatsApp(object):
         catches any sudden alert
         """
         try:
-            WebDriverWait(self.browser, seconds).until(EC.alert_is_present())
-            alert = self.browser.switch_to_alert.accept()
+            WebDriverWait(self.driver, seconds).until(EC.alert_is_present())
+            alert = self.driver.switch_to_alert.accept()
             return True
         except Exception as e:
             LOGGER.exception(f"An exception occurred: {e}")
             return False
 
-    def find_user(self, mobile) -> None:
+    def find_user(self, mobile:str) -> bool:
         """find_user()
-        Makes a user with a given mobile a current target for the wrapper
+        Tries to acces the chat for the given user.
 
         Args:
-            mobile ([type]): [description]
+            mobile (str): The desired phone number. Must not contain '+' sign.
+        Returns:
+            bool: Wheter the contact exists or not.
         """
         try:
-            self.mobile = mobile
+            self.current_mobile = mobile
             link = self.get_phone_link(mobile)
-            self.browser.get(link)
-            time.sleep(3)
+            self.driver.get(link)
+            #waits to see if the message field exists
+            #if it doesn't, then the user probably is not on whatsapp.
+            inp_xpath = '//*[@id="main"]/footer/div[1]/div/span/div/div[2]/div[1]/div/div[1]/p'
+            message_field = self.wait.until(
+                EC.presence_of_element_located((By.XPATH, inp_xpath))
+            )
+            return True
+        except TimeoutError:
+            LOGGER.exception(f"Timed out when finding for message field. {mobile} is probably not on Whatsapp.")
+            return False
         except UnexpectedAlertPresentException as bug:
             LOGGER.exception(f"An exception occurred: {bug}")
             time.sleep(1)
-            self.find_user(mobile)
+            return self.find_user(mobile)
 
-    def find_by_username(self, username):
-        """find_user_by_name ()
 
-        locate existing contact by username or number
+    def query_chats(self, query:str) -> bool:
+        """
+
+        Locate existing contact by username or number
 
         Args:
-            username ([type]): [description]
+            query (str): the username or number to be queried
         """
         search_box = self.wait.until(
             EC.presence_of_element_located(
@@ -165,22 +150,22 @@ class WhatsApp(object):
             )
         )
         search_box.clear()
-        search_box.send_keys(username)
+        search_box.send_keys(query)
         search_box.send_keys(Keys.ENTER)
         try:
-            opened_chat = self.browser.find_elements(
+            opened_chat = self.driver.find_elements(
                 By.XPATH, '//div[@id="main"]/header/div[2]/div[1]/div[1]/span'
             )
             if len(opened_chat):
                 title = opened_chat[0].get_attribute("title")
-                if title.upper() == username.upper():
-                    LOGGER.info(f'Successfully fetched chat "{username}"')
+                if title.upper() == query.upper():
+                    LOGGER.info(f'Successfully fetched chat "{query}"')
                 return True
             else:
-                LOGGER.info(f'It was not possible to fetch chat "{username}"')
+                LOGGER.info(f'It was not possible to fetch chat "{query}"')
                 return False
         except NoSuchElementException:
-            LOGGER.exception(f'It was not possible to fetch chat "{username}"')
+            LOGGER.exception(f'It was not possible to fetch chat "{query}"')
             return False
 
     def username_exists(self, username):
@@ -200,7 +185,7 @@ class WhatsApp(object):
             search_box.clear()
             search_box.send_keys(username)
             search_box.send_keys(Keys.ENTER)
-            opened_chat = self.browser.find_element(
+            opened_chat = self.driver.find_element(
                 By.XPATH,
                 "/html/body/div/div[1]/div[1]/div[4]/div[1]/header/div[2]/div[1]/div/span",
             )
@@ -228,7 +213,7 @@ class WhatsApp(object):
             )
             search_box.click()
             search_box.send_keys(Keys.ARROW_DOWN)
-            chat = self.browser.switch_to.active_element
+            chat = self.driver.switch_to.active_element
             time.sleep(1)
             if ignore_pinned:
                 while True:
@@ -240,7 +225,7 @@ class WhatsApp(object):
                     if not flag:
                         break
                     chat.send_keys(Keys.ARROW_DOWN)
-                    chat = self.browser.switch_to.active_element
+                    chat = self.driver.switch_to.active_element
 
             name = chat.text.split("\n")[0]
             LOGGER.info(f'Successfully selected chat "{name}"')
@@ -265,7 +250,7 @@ class WhatsApp(object):
             )
             search_box.click()
             search_box.send_keys(Keys.ARROW_DOWN)
-            chat = self.browser.switch_to.active_element
+            chat = self.driver.switch_to.active_element
 
             # excepcitonally acceptable here!
             time.sleep(1)
@@ -279,7 +264,7 @@ class WhatsApp(object):
                     flag = True
                     break
                 chat.send_keys(Keys.ARROW_DOWN)
-                chat = self.browser.switch_to.active_element
+                chat = self.driver.switch_to.active_element
                 if prev_name == name:
                     break
             if flag:
@@ -408,7 +393,7 @@ class WhatsApp(object):
         #   4 = Not a WhatsApp Number
         try:
             # Browse to a "Blank" message state
-            self.browser.get(f"https://web.whatsapp.com/send?phone={mobile}&text")
+            self.driver.get(f"https://web.whatsapp.com/send?phone={mobile}&text")
 
             # This is the XPath of the message textbox
             inp_xpath = (
@@ -432,7 +417,7 @@ class WhatsApp(object):
 
                     for line in message.split("\n"):
                         i.send_keys(line)
-                        ActionChains(self.browser).key_down(Keys.SHIFT).key_down(
+                        ActionChains(self.driver).key_down(Keys.SHIFT).key_down(
                             Keys.ENTER
                         ).key_up(Keys.ENTER).key_up(Keys.SHIFT).perform()
                     i.send_keys(Keys.ENTER)
@@ -457,12 +442,13 @@ class WhatsApp(object):
             LOGGER.info(f"{msg}")
             return msg
 
-    def send_message(self, message, timeout=0.0):
-        """send_message ()
-        Sends a message to a target user
+    def send_message_to_current_chat(self, message: str, timeout:float=0.0):
+        """
+        Sends a message to the current chat on screen
 
         Args:
-            message ([type]): [description]
+            message (str): The message to be sent
+            timeout (float): time to wait after typing and before sending
         """
         try:
             inp_xpath = '//*[@id="main"]/footer/div[1]/div/span/div/div[2]/div[1]/div/div[1]/p'
@@ -475,25 +461,18 @@ class WhatsApp(object):
                     input_box.send_keys(word)
                     input_box.send_keys(Keys.SPACE)
                     time.sleep(0.8)
-                ActionChains(self.browser).key_down(Keys.SHIFT).key_down(
+                ActionChains(self.driver).key_down(Keys.SHIFT).key_down(
                     Keys.ENTER
                 ).key_up(Keys.ENTER).key_up(Keys.SHIFT).perform()
             if timeout:
                 time.sleep(timeout)
             input_box.send_keys(Keys.ENTER)
-            LOGGER.info(f"Message sent successfuly to {self.mobile}")
+            LOGGER.info(f"Message sent successfuly to {self.current_mobile}")
             return True
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.mobile} - {bug}")
-            LOGGER.info("send_message() finished running!")
+            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
+            #LOGGER.info("send_message() finished running!")
         return False
-
-    def send_direct_message(self, mobile: str, message: str, saved: bool = True):
-        if saved:
-            self.find_by_username(mobile)
-        else:
-            self.find_user(mobile)
-        self.send_message(message)
 
     def find_attachment(self):
         clipButton = self.wait.until(
@@ -518,7 +497,7 @@ class WhatsApp(object):
         )
         for line in message.split("\n"):
             input_box.send_keys(line)
-            ActionChains(self.browser).key_down(Keys.SHIFT).key_down(Keys.ENTER).key_up(
+            ActionChains(self.driver).key_down(Keys.SHIFT).key_down(Keys.ENTER).key_up(
                 Keys.ENTER
             ).key_up(Keys.SHIFT).perform()
 
@@ -572,9 +551,9 @@ class WhatsApp(object):
             if message:
                 self.add_caption(message, media_type="image")
             self.send_attachment()
-            LOGGER.info(f"Picture has been successfully sent to {self.mobile}")
+            LOGGER.info(f"Picture has been successfully sent to {self.current_mobile}")
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.mobile} - {bug}")
+            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
         finally:
             LOGGER.info("send_picture() finished running!")
 
@@ -625,11 +604,11 @@ class WhatsApp(object):
                 if message:
                     self.add_caption(message, media_type="video")
                 self.send_attachment()
-                LOGGER.info(f"Video has been successfully sent to {self.mobile}")
+                LOGGER.info(f"Video has been successfully sent to {self.current_mobile}")
             else:
                 LOGGER.info(f"Video larger than 14MB")
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.mobile} - {bug}")
+            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
         finally:
             LOGGER.info("send_video() finished running!")
 
@@ -657,7 +636,7 @@ class WhatsApp(object):
                 self.add_caption(message, media_type="file")
             self.send_attachment()
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a file to {self.mobile} - {bug}")
+            LOGGER.exception(f"Failed to send a file to {self.current_mobile} - {bug}")
         finally:
             LOGGER.info("send_file() finished running!")
 
@@ -685,9 +664,9 @@ class WhatsApp(object):
                 )
             )
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.mobile} - {bug}")
+            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
         finally:
-            self.browser.close()
+            self.driver.close()
             LOGGER.info("Browser closed.")
 
     def wait_until_message_successfully_sent(self):
@@ -712,7 +691,7 @@ class WhatsApp(object):
                 )
             )
         except (NoSuchElementException, Exception) as bug:
-            LOGGER.exception(f"Failed to send a message to {self.mobile} - {bug}")
+            LOGGER.exception(f"Failed to send a message to {self.current_mobile} - {bug}")
 
     def get_last_message_received(self, query: str):
         """get_last_message_received() [nCKbr]
@@ -723,7 +702,7 @@ class WhatsApp(object):
             query (string): query value to be located in the chat name
         """
         try:
-            if self.find_by_username(query):
+            if self.query_chats(query):
                 self.wait.until(
                     EC.presence_of_element_located(
                         (
