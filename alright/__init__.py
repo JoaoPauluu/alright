@@ -28,30 +28,32 @@ class WhatsApp(object):
 
     logger: logging.Logger
 
-    def __init__(self, driver: webdriver.Chrome | webdriver.Firefox, timeout:float=60):
+    def __init__(self, driver: webdriver.Chrome | webdriver.Firefox, timeout:float=60, logger:logging.Logger|None=None):
 
         self.driver = driver
         self.wait = WebDriverWait(driver=self.driver, timeout=timeout) 
         self.current_mobile = ""
-
-        self.build_logger()
+        if not logger:
+            logger = self._build_logger()
+        self.logger = logger
+        self._build_logger()
         self.login()
 
-
-    def build_logger(self):
+    def _build_logger(self) -> logging.Logger:
         """
         self.logger settings  [nCKbr]
         """
 
-        self.logger = logging.getLogger()
+        logger = logging.getLogger()
         handler = logging.StreamHandler()
         handler.setFormatter(
             logging.Formatter(
                 "%(asctime)s - %(name)s -- [%(levelname)s] >> %(message)s"
             )
         )
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+        return logger
 
     def login(self):
         BASE_URL = "https://web.whatsapp.com/"
@@ -557,7 +559,7 @@ class WhatsApp(object):
         finally:
             self.logger.info("send_picture() finished running!")
 
-    def convert_bytes(self, size) -> str:
+    def convert_bytes(self, size) -> str | None:
         # CJM - 2022/06/10:
         # Convert bytes to KB, or MB or GB
         for x in ["bytes", "KB", "MB", "GB", "TB"]:
