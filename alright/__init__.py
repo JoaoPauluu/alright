@@ -105,7 +105,7 @@ class WhatsApp(object):
             return False
 
     def find_user(self, mobile:str) -> bool:
-        """find_user()
+        """
         Tries to acces the chat for the given user.
 
         Args:
@@ -125,7 +125,7 @@ class WhatsApp(object):
             )
             return True
         except TimeoutError:
-            LOGGER.exception(f"Timed out when finding for message field. {mobile} is probably not on Whatsapp.")
+            LOGGER.exception(f"Timeout: {mobile} is probably not on Whatsapp.")
             return False
         except UnexpectedAlertPresentException as bug:
             LOGGER.exception(f"An exception occurred: {bug}")

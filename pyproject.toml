@@ -1,10 +1,9 @@
 [project]
-name = "alright"
+name = "actually_alright"
 version = "0.1.0"
-description = "Add your description here"
+description = "A fork of the module alright, inteneded for Whatsapp automation"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "selenium>=4.36.0",
-    "undetected-chromedriver>=3.5.5",
 ]
