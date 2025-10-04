@@ -81,14 +81,14 @@ class WhatsApp(object):
         )
         logout_item.click()
 
-    def get_phone_link(self, mobile) -> str:
+    def get_phone_link(self, mobile:str) -> str:
         """get_phone_link (), create a link based on whatsapp (wa.me) api
 
         Args:
-            mobile ([type]): [description]
+            mobile (str): Phone Number
 
         Returns:
-            str: [description]
+            str: url
         """
         suffix_link = "https://web.whatsapp.com/send?phone={mobile}&text&type=phone_number&app_absent=1"
         return suffix_link.format(mobile=mobile)
@@ -100,7 +100,7 @@ class WhatsApp(object):
         """
         try:
             WebDriverWait(self.driver, seconds).until(EC.alert_is_present())
-            alert = self.driver.switch_to_alert.accept()
+            alert = self.driver.switch_to.alert.accept()
             return True
         except Exception as e:
             self.logger.exception(f"An exception occurred: {e}")
@@ -160,7 +160,7 @@ class WhatsApp(object):
             )
             if len(opened_chat):
                 title = opened_chat[0].get_attribute("title")
-                if title.upper() == query.upper():
+                if title.upper() == query.upper(): #type: ignore
                     self.logger.info(f'Successfully fetched chat "{query}"')
                 return True
             else:
@@ -192,7 +192,7 @@ class WhatsApp(object):
                 "/html/body/div/div[1]/div[1]/div[4]/div[1]/header/div[2]/div[1]/div/span",
             )
             title = opened_chat.get_attribute("title")
-            if title.upper() == username.upper():
+            if title.upper() == username.upper(): #type:ignore
                 return True
             else:
                 return False
@@ -221,7 +221,7 @@ class WhatsApp(object):
                 while True:
                     flag = False
                     for item in chat.find_elements(By.TAG_NAME, "span"):
-                        if "pinned" in item.get_attribute("innerHTML"):
+                        if "pinned" in item.get_attribute("innerHTML"): #type:ignore
                             flag = True
                             break
                     if not flag:
@@ -393,6 +393,7 @@ class WhatsApp(object):
         #   2 = Number to short
         #   3 = Error or Failure to Send Message
         #   4 = Not a WhatsApp Number
+        return_msg = ""
         try:
             # Browse to a "Blank" message state
             self.driver.get(f"https://web.whatsapp.com/send?phone={mobile}&text")
@@ -424,7 +425,7 @@ class WhatsApp(object):
                         ).key_up(Keys.ENTER).key_up(Keys.SHIFT).perform()
                     i.send_keys(Keys.ENTER)
 
-                    msg = f"1 "  # Message was sent successfully
+                    return_msg = f"1 "  # Message was sent successfully
                     # Found alert issues when we send messages too fast, so I called the below line to catch any alerts
                     self.catch_alert()
 
@@ -434,15 +435,15 @@ class WhatsApp(object):
                     if i.text == "OK":
                         # This is NOT a WhatsApp Number -> Press enter and continue
                         i.send_keys(Keys.ENTER)
-                        msg = f"4 "  # Not a WhatsApp Number
+                        return_msg = f"4 "  # Not a WhatsApp Number
 
         except (NoSuchElementException, Exception) as bug:
             self.logger.exception(f"An exception occurred: {bug}")
-            msg = f"3 "
+            return_msg = "3 "
 
         finally:
-            self.logger.info(f"{msg}")
-            return msg
+            self.logger.info(f"{return_msg}")
+            return return_msg
 
     def send_message_to_current_chat(self, message: str, timeout:float=0.0):
         """
@@ -567,7 +568,7 @@ class WhatsApp(object):
                 return "%3.1f %s" % (size, x)
             size /= 1024.0
 
-    def convert_bytes_to(self, size, to):
+    def _convert_bytes_to(self, size:float, to:str) -> float:
         # CJM - 2022 / 06 / 10:
         # Returns Bytes as 'KB', 'MB', 'GB', 'TB'
         conv_to = to.upper()
@@ -575,7 +576,8 @@ class WhatsApp(object):
             for x in ["BYTES", "KB", "MB", "GB", "TB"]:
                 if x == conv_to:
                     return size
-                size /= 1024.0
+                size /= 1024
+        raise TypeError('Parameter "to" must be in ["BYTES", "KB", "MB", "GB", "TB"]')
 
     def send_video(self, video: Path, message: Optional[str] = None):
         """send_video ()
@@ -588,7 +590,7 @@ class WhatsApp(object):
         try:
             filename = os.path.realpath(video)
             f_size = os.path.getsize(filename)
-            x = self.convert_bytes_to(f_size, "MB")
+            x = self._convert_bytes_to(f_size, "MB")
             if x < 14:
                 # File is less than 14MB
                 self.find_attachment()
@@ -614,7 +616,7 @@ class WhatsApp(object):
         finally:
             self.logger.info("send_video() finished running!")
 
-    def send_file(self, filename: Path, message: Optional[str] = None):
+    def send_file(self, file_path: str, message: Optional[str] = None):
         """send_file()
 
         Sends a file to target user
@@ -623,7 +625,7 @@ class WhatsApp(object):
             filename ([type]): [description]
         """
         try:
-            filename = os.path.realpath(filename)
+            file_path = os.path.realpath(file_path)
             self.find_attachment()
             document_button = self.wait.until(
                 EC.presence_of_element_located(
@@ -633,7 +635,7 @@ class WhatsApp(object):
                     )
                 )
             )
-            document_button.send_keys(filename)
+            document_button.send_keys(file_path)
             if message:
                 self.add_caption(message, media_type="file")
             self.send_attachment()
@@ -719,9 +721,9 @@ class WhatsApp(object):
                 )  # clueless on why the previous wait is not respected - we need this sleep to load tha list.
 
                 list_of_messages = self.wait.until(
-                    EC.presence_of_all_elements_located(
+                    EC.presence_of_all_elements_located((
                         By.XPATH,
-                        '//div[@id="main"]/div[3]/div[1]/div[2]/div[3]/child::div[contains(@class,"message-in")]',
+                        '//div[@id="main"]/div[3]/div[1]/div[2]/div[3]/child::div[contains(@class,"message-in")]')
                     )
                 )
 
@@ -749,7 +751,7 @@ class WhatsApp(object):
                         when = msg.text.split("\n")[-1]
                         msg = (
                             msg.text.split("\n")
-                            if "media-play" not in msg.get_attribute("innerHTML")
+                            if "media-play" not in msg.get_attribute("innerHTML") #type:ignore
                             else "Video or Image"
                         )
                     else:
@@ -836,17 +838,16 @@ class WhatsApp(object):
                 pane.send_keys(Keys.PAGE_DOWN)
 
                 list_of_messages = self.get_list_of_messages()
+
+                side_panel = self.wait.until(EC.presence_of_element_located(
+                    (By.XPATH, '//div[@id="pane-side"]/div[2]')))
+                some_weird_counter = side_panel.get_attribute("aria-rowcount")
+                if type(some_weird_counter) is not int:
+                    raise TypeError
+                
                 if (
                     last_counter == counter
-                    and counter
-                    >= int(
-                        self.wait.until(
-                            EC.presence_of_element_located(
-                                (By.XPATH, '//div[@id="pane-side"]/div[2]')
-                            )
-                        ).get_attribute("aria-rowcount")
-                    )
-                    * 0.9
+                    and counter >= int(some_weird_counter) * 0.9
                 ):
                     break
                 if limit and counter >= top:
