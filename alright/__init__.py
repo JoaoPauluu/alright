@@ -44,7 +44,8 @@ class WhatsApp(object):
         self.logger settings  [nCKbr]
         """
 
-        logger = logging.getLogger()
+        logger = logging.getLogger('alright')
+        logger.propagate = False
         handler = logging.StreamHandler()
         handler.setFormatter(
             logging.Formatter(
