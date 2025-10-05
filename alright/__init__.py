@@ -36,7 +36,6 @@ class WhatsApp(object):
         if not logger:
             logger = self._build_logger()
         self.logger = logger
-        self.login()
 
     def _build_logger(self) -> logging.Logger:
         """
